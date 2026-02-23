@@ -1,30 +1,94 @@
 ﻿import { useRouter } from "expo-router";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   KeyboardAvoidingView,
   Platform,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
+import Animated, {
+  runOnJS,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { CATEGORY_COLORS, reactionColor } from "@/constants/atom-palette";
 import { useSettings } from "@/context/settings";
 import data from "@/data.json";
 
 type Element = (typeof data.elements)[number];
 type GameState = "idle" | "playing" | "finished";
 
+/** How long (ms) the per-atom reaction time badge stays visible */
+const REACTION_DISPLAY_MS = 1500;
+const REACTION_ENTER_MS = 180;
+const REACTION_EXIT_MS = 260;
+
+function ReactionTimeBadge({
+  ms,
+  color,
+  onHide,
+}: {
+  ms: number;
+  color: string;
+  onHide: () => void;
+}) {
+  const opacity = useSharedValue(0);
+  const translateY = useSharedValue(20);
+
+  useEffect(() => {
+    opacity.value = withTiming(1, { duration: REACTION_ENTER_MS });
+    translateY.value = withTiming(0, { duration: REACTION_ENTER_MS });
+
+    const t = setTimeout(() => {
+      opacity.value = withTiming(
+        0,
+        { duration: REACTION_EXIT_MS },
+        finished => {
+          if (finished) runOnJS(onHide)();
+        },
+      );
+      translateY.value = withTiming(-20, { duration: REACTION_EXIT_MS });
+    }, REACTION_DISPLAY_MS);
+
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const animStyle = useAnimatedStyle(() => ({
+    opacity: opacity.value,
+    transform: [{ translateY: translateY.value }],
+  }));
+
+  return (
+    <Animated.Text style={[styles.reactionTime, { color }, animStyle]}>
+      {formatTime(ms)}
+    </Animated.Text>
+  );
+}
+
 function pickRandom(pool: Element[]): Element {
   return pool[Math.floor(Math.random() * pool.length)];
 }
 
+function formatTime(ms: number): string {
+  const m = Math.floor(ms / 60000);
+  const s = Math.floor((ms % 60000) / 1000);
+  const cs = Math.floor((ms % 1000) / 10);
+  return `${m}:${String(s).padStart(2, "0")}.${String(cs).padStart(2, "0")}`;
+}
+
 function AtomCard({ element }: { element: Element }) {
   const masked = element.name.replace(/[a-zA-Z]/g, "*");
+  const bgColor = CATEGORY_COLORS[element.category] ?? "#18181b";
   return (
-    <View style={styles.atomCard}>
+    <View style={[styles.atomCard, { backgroundColor: bgColor }]}>
       <Text style={styles.atomNumber}>{element.atomicNumber}</Text>
       <Text style={styles.atomSymbol}>{element.symbol}</Text>
       <Text style={styles.maskedName}>{masked}</Text>
@@ -43,19 +107,62 @@ export default function HomeScreen() {
   const [skipCount, setSkipCount] = useState(0);
   const [errorCount, setErrorCount] = useState(0);
   const [input, setInput] = useState("");
+  const [elapsed, setElapsed] = useState(0);
   const inputRef = useRef<TextInput>(null);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const elementStartRef = useRef(0);
+  const reactionTimesRef = useRef<
+    { atomicNumber: number; ms: number; skipped: boolean }[]
+  >([]);
+  const [lastReactionMs, setLastReactionMs] = useState<number | null>(null);
+  const [reactionKey, setReactionKey] = useState(0);
+  const [finalReactionTimes, setFinalReactionTimes] = useState<
+    { atomicNumber: number; ms: number; skipped: boolean }[]
+  >([]);
 
-  const advanceToNext = useCallback((pool: Element[]) => {
-    if (pool.length === 0) {
-      setGameState("finished");
-      return;
+  useEffect(
+    () => () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    },
+    [],
+  );
+
+  const stopTimer = useCallback(() => {
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
     }
-    const next = pickRandom(pool);
-    setRemaining(pool.filter(e => e.atomicNumber !== next.atomicNumber));
-    setCurrent(next);
-    setInput("");
-    inputRef.current?.focus();
   }, []);
+
+  const startTimer = useCallback(() => {
+    stopTimer();
+    const start = Date.now();
+    setElapsed(0);
+    timerRef.current = setInterval(() => setElapsed(Date.now() - start), 20);
+  }, [stopTimer]);
+
+  const showReaction = useCallback((ms: number) => {
+    setLastReactionMs(ms);
+    setReactionKey(k => k + 1);
+  }, []);
+
+  const advanceToNext = useCallback(
+    (pool: Element[]) => {
+      if (pool.length === 0) {
+        stopTimer();
+        setFinalReactionTimes([...reactionTimesRef.current]);
+        setGameState("finished");
+        return;
+      }
+      const next = pickRandom(pool);
+      setRemaining(pool.filter(e => e.atomicNumber !== next.atomicNumber));
+      setCurrent(next);
+      setInput("");
+      elementStartRef.current = Date.now();
+      inputRef.current?.focus();
+    },
+    [stopTimer],
+  );
 
   const startGame = useCallback(() => {
     const pool = [...data.elements];
@@ -66,13 +173,23 @@ export default function HomeScreen() {
     setSkipCount(0);
     setErrorCount(0);
     setInput("");
+    reactionTimesRef.current = [];
+    elementStartRef.current = Date.now();
     setGameState("playing");
+    startTimer();
     setTimeout(() => inputRef.current?.focus(), 150);
-  }, []);
+  }, [startTimer]);
 
   const handleSubmit = useCallback(() => {
     if (!current) return;
     if (input.trim().toLowerCase() === current.name.toLowerCase()) {
+      const ms = Date.now() - elementStartRef.current;
+      reactionTimesRef.current.push({
+        atomicNumber: current.atomicNumber,
+        ms,
+        skipped: false,
+      });
+      showReaction(ms);
       setScore(s => s + 1);
       advanceToNext(remaining);
     } else {
@@ -80,25 +197,39 @@ export default function HomeScreen() {
       setInput("");
       inputRef.current?.focus();
     }
-  }, [current, input, remaining, advanceToNext]);
+  }, [current, input, remaining, advanceToNext, showReaction]);
 
   const handleSkip = useCallback(() => {
     if (!current) return;
+    const ms = Date.now() - elementStartRef.current;
+    reactionTimesRef.current.push({
+      atomicNumber: current.atomicNumber,
+      ms,
+      skipped: true,
+    });
+    showReaction(ms);
     setSkipCount(s => s + 1);
     advanceToNext(remaining);
-  }, [current, remaining, advanceToNext]);
+  }, [current, remaining, advanceToNext, showReaction]);
 
   const handleChangeText = useCallback(
     (text: string) => {
       setInput(text);
       if (autoSend && current) {
         if (text.trim().toLowerCase() === current.name.toLowerCase()) {
+          const ms = Date.now() - elementStartRef.current;
+          reactionTimesRef.current.push({
+            atomicNumber: current.atomicNumber,
+            ms,
+            skipped: false,
+          });
+          showReaction(ms);
           setScore(s => s + 1);
           advanceToNext(remaining);
         }
       }
     },
-    [autoSend, current, remaining, advanceToNext],
+    [autoSend, current, remaining, advanceToNext, showReaction],
   );
 
   if (gameState === "idle") {
@@ -132,13 +263,48 @@ export default function HomeScreen() {
         >
           <Text style={styles.settingsBtnText}>⚙</Text>
         </TouchableOpacity>
-        <View style={styles.centered}>
+        <ScrollView
+          contentContainerStyle={[
+            styles.finishedContent,
+            { paddingTop: insets.top + 48, paddingBottom: insets.bottom + 24 },
+          ]}
+          keyboardShouldPersistTaps="handled"
+        >
           <Text style={styles.idleTitle}>Complete</Text>
-          <Text style={styles.idleSubtitle}>You named all 118 elements.</Text>
+          <Text style={styles.idleSubtitle}>{formatTime(elapsed)}</Text>
+          <Text style={styles.idleSubtitle}>
+            {skipCount} skipped · {errorCount} errors
+          </Text>
           <TouchableOpacity style={styles.btn} onPress={startGame}>
             <Text style={styles.btnText}>Play again</Text>
           </TouchableOpacity>
-        </View>
+
+          {/* Recap */}
+          <View style={styles.recapList}>
+            <Text style={styles.recapHeader}>Reaction times</Text>
+            {finalReactionTimes.map(rt => {
+              const el = data.elements.find(
+                e => e.atomicNumber === rt.atomicNumber,
+              );
+              return (
+                <View key={rt.atomicNumber} style={styles.recapRow}>
+                  <Text style={styles.recapSymbol}>{el?.symbol}</Text>
+                  <Text style={styles.recapName}>{el?.name}</Text>
+                  <Text
+                    style={[
+                      styles.recapTime,
+                      rt.skipped
+                        ? styles.recapTimeSkipped
+                        : { color: reactionColor(rt.ms) },
+                    ]}
+                  >
+                    {rt.skipped ? "skip" : formatTime(rt.ms)}
+                  </Text>
+                </View>
+              );
+            })}
+          </View>
+        </ScrollView>
       </View>
     );
   }
@@ -167,8 +333,21 @@ export default function HomeScreen() {
             <Text style={styles.statItem}>✗ {errorCount} errors</Text>
           </View>
           <View style={styles.scoreRow}>
-            <Text style={styles.scoreNum}>{score}</Text>
-            <Text style={styles.scoreTotal}> / 118</Text>
+            <Text style={styles.timerText}>{formatTime(elapsed)}</Text>
+            <View style={styles.reactionSlot}>
+              {lastReactionMs !== null && (
+                <ReactionTimeBadge
+                  key={reactionKey}
+                  ms={lastReactionMs}
+                  color={reactionColor(lastReactionMs)}
+                  onHide={() => setLastReactionMs(null)}
+                />
+              )}
+            </View>
+            <View style={styles.scoreGroup}>
+              <Text style={styles.scoreNum}>{score}</Text>
+              <Text style={styles.scoreTotal}> / 118</Text>
+            </View>
           </View>
         </View>
 
@@ -280,6 +459,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
   },
   topArea: {
+    width: "100%",
     alignItems: "center",
     gap: 4,
   },
@@ -299,7 +479,19 @@ const styles = StyleSheet.create({
   },
   scoreRow: {
     flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    width: "100%",
+  },
+  scoreGroup: {
+    flexDirection: "row",
     alignItems: "baseline",
+  },
+  timerText: {
+    fontSize: 20,
+    fontWeight: "600",
+    color: "#52525b", // zinc-600
+    fontVariant: ["tabular-nums"],
   },
   scoreNum: {
     fontSize: 32,
@@ -378,6 +570,71 @@ const styles = StyleSheet.create({
     color: "#3f3f46", // zinc-700
     fontWeight: "500",
     paddingVertical: 4,
+  },
+
+  // ── Live reaction flash ────────────────────────────────────────────────────
+  reactionSlot: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  reactionTime: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#52525b", // zinc-600 (default, overridden inline)
+    fontVariant: ["tabular-nums"],
+  },
+
+  // ── Finished / recap ──────────────────────────────────────────────────────
+  finishedContent: {
+    alignItems: "center",
+    gap: 10,
+    paddingHorizontal: 24,
+  },
+  recapList: {
+    width: "100%",
+    marginTop: 24,
+    gap: 2,
+  },
+  recapHeader: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#3f3f46", // zinc-700
+    textTransform: "uppercase",
+    letterSpacing: 1.2,
+    marginBottom: 8,
+  },
+  recapRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 9,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    backgroundColor: "#18181b", // zinc-900
+    marginBottom: 2,
+    gap: 10,
+  },
+  recapSymbol: {
+    width: 32,
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#a1a1aa", // zinc-400
+    textAlign: "center",
+  },
+  recapName: {
+    flex: 1,
+    fontSize: 14,
+    color: "#71717a", // zinc-500
+  },
+  recapTime: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#52525b", // zinc-600 (default, overridden inline)
+    fontVariant: ["tabular-nums"],
+  },
+  recapTimeSkipped: {
+    color: "#3f3f46", // zinc-700
+    fontStyle: "italic",
   },
   settingsBtn: {
     position: "absolute",
