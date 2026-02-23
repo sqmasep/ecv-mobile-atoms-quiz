@@ -24,6 +24,7 @@ import data from "@/data.json";
 
 type Element = (typeof data.elements)[number];
 type GameState = "idle" | "playing" | "finished";
+type GuessMode = "name" | "symbol" | "atomicNumber";
 
 /** How long (ms) the per-atom reaction time badge stays visible */
 const REACTION_DISPLAY_MS = 1500;
@@ -84,14 +85,38 @@ function formatTime(ms: number): string {
   return `${m}:${String(s).padStart(2, "0")}.${String(cs).padStart(2, "0")}`;
 }
 
-function AtomCard({ element }: { element: Element }) {
-  const masked = element.name.replace(/[a-zA-Z]/g, "*");
+function AtomCard({
+  element,
+  guessMode,
+}: {
+  element: Element;
+  guessMode: GuessMode;
+}) {
   const bgColor = CATEGORY_COLORS[element.category] ?? "#18181b";
+  const maskedSymbol = element.symbol.replace(/[a-zA-Z]/g, "*");
+  const maskedNumber = String(element.atomicNumber).replace(/\d/g, "*");
+  const maskedName = element.name.replace(/[a-zA-Z]/g, "*");
   return (
     <View style={[styles.atomCard, { backgroundColor: bgColor }]}>
-      <Text style={styles.atomNumber}>{element.atomicNumber}</Text>
-      <Text style={styles.atomSymbol}>{element.symbol}</Text>
-      <Text style={styles.maskedName}>{masked}</Text>
+      <Text style={styles.atomNumber}>
+        {guessMode === "atomicNumber" ? maskedNumber : element.atomicNumber}
+      </Text>
+      <Text
+        style={[
+          styles.atomSymbol,
+          guessMode === "symbol" && styles.atomFieldMasked,
+        ]}
+      >
+        {guessMode === "symbol" ? maskedSymbol : element.symbol}
+      </Text>
+      <Text
+        style={[
+          styles.maskedName,
+          guessMode !== "name" && styles.maskedNameVisible,
+        ]}
+      >
+        {guessMode === "name" ? maskedName : element.name}
+      </Text>
     </View>
   );
 }
@@ -101,6 +126,7 @@ export default function HomeScreen() {
   const router = useRouter();
   const { autoSend } = useSettings();
   const [gameState, setGameState] = useState<GameState>("idle");
+  const [guessMode, setGuessMode] = useState<GuessMode>("name");
   const [remaining, setRemaining] = useState<Element[]>([]);
   const [current, setCurrent] = useState<Element | null>(null);
   const [score, setScore] = useState(0);
@@ -182,7 +208,14 @@ export default function HomeScreen() {
 
   const handleSubmit = useCallback(() => {
     if (!current) return;
-    if (input.trim().toLowerCase() === current.name.toLowerCase()) {
+    const answer = input.trim().toLowerCase();
+    const correct =
+      guessMode === "name"
+        ? current.name.toLowerCase()
+        : guessMode === "symbol"
+          ? current.symbol.toLowerCase()
+          : String(current.atomicNumber);
+    if (answer === correct) {
       const ms = Date.now() - elementStartRef.current;
       reactionTimesRef.current.push({
         atomicNumber: current.atomicNumber,
@@ -197,7 +230,7 @@ export default function HomeScreen() {
       setInput("");
       inputRef.current?.focus();
     }
-  }, [current, input, remaining, advanceToNext, showReaction]);
+  }, [current, input, guessMode, remaining, advanceToNext, showReaction]);
 
   const handleSkip = useCallback(() => {
     if (!current) return;
@@ -216,7 +249,14 @@ export default function HomeScreen() {
     (text: string) => {
       setInput(text);
       if (autoSend && current) {
-        if (text.trim().toLowerCase() === current.name.toLowerCase()) {
+        const answer = text.trim().toLowerCase();
+        const correct =
+          guessMode === "name"
+            ? current.name.toLowerCase()
+            : guessMode === "symbol"
+              ? current.symbol.toLowerCase()
+              : String(current.atomicNumber);
+        if (answer === correct) {
           const ms = Date.now() - elementStartRef.current;
           reactionTimesRef.current.push({
             atomicNumber: current.atomicNumber,
@@ -229,10 +269,15 @@ export default function HomeScreen() {
         }
       }
     },
-    [autoSend, current, remaining, advanceToNext, showReaction],
+    [autoSend, guessMode, current, remaining, advanceToNext, showReaction],
   );
 
   if (gameState === "idle") {
+    const MODES: { value: GuessMode; label: string; sub: string }[] = [
+      { value: "name", label: "Name", sub: "Hydrogen" },
+      { value: "symbol", label: "Symbol", sub: "H" },
+      { value: "atomicNumber", label: "Number", sub: "1" },
+    ];
     return (
       <View style={[styles.fill, { paddingTop: insets.top }]}>
         <TouchableOpacity
@@ -243,9 +288,36 @@ export default function HomeScreen() {
         </TouchableOpacity>
         <View style={styles.centered}>
           <Text style={styles.idleTitle}>⚛ Atom Quiz</Text>
-          <Text style={styles.idleSubtitle}>
-            Can you name all 118 elements?
-          </Text>
+          <Text style={styles.idleSubtitle}>What do you want to guess?</Text>
+          <View style={styles.modeRow}>
+            {MODES.map(m => (
+              <TouchableOpacity
+                key={m.value}
+                style={[
+                  styles.modeBtn,
+                  guessMode === m.value && styles.modeBtnActive,
+                ]}
+                onPress={() => setGuessMode(m.value)}
+              >
+                <Text
+                  style={[
+                    styles.modeBtnLabel,
+                    guessMode === m.value && styles.modeBtnLabelActive,
+                  ]}
+                >
+                  {m.label}
+                </Text>
+                <Text
+                  style={[
+                    styles.modeBtnSub,
+                    guessMode === m.value && styles.modeBtnSubActive,
+                  ]}
+                >
+                  {m.sub}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
           <TouchableOpacity style={styles.btn} onPress={startGame}>
             <Text style={styles.btnText}>Play</Text>
           </TouchableOpacity>
@@ -353,7 +425,7 @@ export default function HomeScreen() {
 
         {/* Card */}
         <View style={styles.cardArea}>
-          {current && <AtomCard element={current} />}
+          {current && <AtomCard element={current} guessMode={guessMode} />}
         </View>
 
         {/* Input + Buttons */}
@@ -540,7 +612,14 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: "600",
     letterSpacing: 2.5,
-    color: "#3f3f46", // zinc-700
+    color: "#3f3f46", // zinc-700 — masked
+  },
+  maskedNameVisible: {
+    color: "#71717a", // zinc-500 — shown
+    letterSpacing: 1,
+  },
+  atomFieldMasked: {
+    color: "#3f3f46", // zinc-700 — masked symbol
   },
 
   inputArea: {
@@ -570,6 +649,43 @@ const styles = StyleSheet.create({
     color: "#3f3f46", // zinc-700
     fontWeight: "500",
     paddingVertical: 4,
+  },
+
+  // ── Mode selector ────────────────────────────────────────────────────────
+  modeRow: {
+    flexDirection: "row",
+    gap: 10,
+    marginVertical: 8,
+  },
+  modeBtn: {
+    flex: 1,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#27272a", // zinc-800
+    backgroundColor: "#18181b", // zinc-900
+    paddingVertical: 14,
+    alignItems: "center",
+    gap: 4,
+  },
+  modeBtnActive: {
+    borderColor: "#e4e4e7", // zinc-200
+    backgroundColor: "#27272a", // zinc-800
+  },
+  modeBtnLabel: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#3f3f46", // zinc-700
+  },
+  modeBtnLabelActive: {
+    color: "#f4f4f5", // zinc-100
+  },
+  modeBtnSub: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#27272a", // zinc-800
+  },
+  modeBtnSubActive: {
+    color: "#71717a", // zinc-500
   },
 
   // ── Live reaction flash ────────────────────────────────────────────────────
