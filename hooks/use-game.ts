@@ -1,21 +1,25 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+﻿import { useCallback, useEffect, useRef, useState } from "react";
 import { TextInput } from "react-native";
 
 import { useSettings } from "@/context/settings";
-import data from "@/data.json";
 import type {
   Element,
+  ElementFilter,
   GameState,
   GuessMode,
+  OrderMode,
   ReactionEntry,
 } from "@/types/game";
-import { getCorrectAnswer, pickRandom } from "@/utils/game";
+import { buildPool, getCorrectAnswer, pickRandom } from "@/utils/game";
 
 export function useGame() {
   const { autoSend } = useSettings();
 
   const [gameState, setGameState] = useState<GameState>("idle");
   const [guessMode, setGuessMode] = useState<GuessMode>("name");
+  const [elementFilter, setElementFilter] = useState<ElementFilter>("all");
+  const [orderMode, setOrderMode] = useState<OrderMode>("random");
+  const [poolSize, setPoolSize] = useState(0);
   const [remaining, setRemaining] = useState<Element[]>([]);
   const [current, setCurrent] = useState<Element | null>(null);
   const [score, setScore] = useState(0);
@@ -33,6 +37,14 @@ export function useGame() {
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const elementStartRef = useRef(0);
   const reactionTimesRef = useRef<ReactionEntry[]>([]);
+
+  // Auto-correct invalid combo: guessing atomic number sorted by atomic number
+  // would make answers trivially sequential (1, 2, 3 ...).
+  useEffect(() => {
+    if (guessMode === "atomicNumber" && orderMode === "atomicNumber") {
+      setOrderMode("random");
+    }
+  }, [guessMode, orderMode]);
 
   useEffect(
     () => () => {
@@ -68,20 +80,30 @@ export function useGame() {
         setGameState("finished");
         return;
       }
-      const next = pickRandom(pool);
-      setRemaining(pool.filter(e => e.atomicNumber !== next.atomicNumber));
+      const next = orderMode === "random" ? pickRandom(pool) : pool[0];
+      const newRemaining =
+        orderMode === "random"
+          ? pool.filter(e => e.atomicNumber !== next.atomicNumber)
+          : pool.slice(1);
+      setRemaining(newRemaining);
       setCurrent(next);
       setInput("");
       elementStartRef.current = Date.now();
       inputRef.current?.focus();
     },
-    [stopTimer],
+    [stopTimer, orderMode],
   );
 
   const startGame = useCallback(() => {
-    const pool = [...data.elements];
-    const first = pickRandom(pool);
-    setRemaining(pool.filter(e => e.atomicNumber !== first.atomicNumber));
+    const pool = buildPool(elementFilter, orderMode, guessMode);
+    const first = orderMode === "random" ? pickRandom(pool) : pool[0];
+    const rest =
+      orderMode === "random"
+        ? pool.filter(e => e.atomicNumber !== first.atomicNumber)
+        : pool.slice(1);
+
+    setPoolSize(pool.length);
+    setRemaining(rest);
     setCurrent(first);
     setScore(0);
     setSkipCount(0);
@@ -92,7 +114,7 @@ export function useGame() {
     setGameState("playing");
     startTimer();
     setTimeout(() => inputRef.current?.focus(), 150);
-  }, [startTimer]);
+  }, [startTimer, elementFilter, orderMode, guessMode]);
 
   const handleSubmit = useCallback(() => {
     if (!current) return;
@@ -150,10 +172,21 @@ export function useGame() {
     [autoSend, guessMode, current, remaining, advanceToNext, showReaction],
   );
 
+  const goHome = useCallback(() => {
+    stopTimer();
+    setGameState("idle");
+  }, [stopTimer]);
+
   return {
     gameState,
+    goHome,
     guessMode,
     setGuessMode,
+    elementFilter,
+    setElementFilter,
+    orderMode,
+    setOrderMode,
+    poolSize,
     current,
     score,
     skipCount,
