@@ -2,6 +2,7 @@
 import { TextInput } from "react-native";
 
 import { useSettings } from "@/context/settings";
+import { useElements } from "@/hooks/use-elements";
 import type {
   Element,
   ElementFilter,
@@ -94,8 +95,11 @@ export function useGame() {
     [stopTimer, orderMode],
   );
 
+  const { data: elements } = useElements();
+
   const startGame = useCallback(() => {
-    const pool = buildPool(elementFilter, orderMode, guessMode);
+    if (!elements) return;
+    const pool = buildPool(elements, elementFilter, orderMode, guessMode);
     const first = orderMode === "random" ? pickRandom(pool) : pool[0];
     const rest =
       orderMode === "random"
@@ -114,7 +118,7 @@ export function useGame() {
     setGameState("playing");
     startTimer();
     setTimeout(() => inputRef.current?.focus(), 150);
-  }, [startTimer, elementFilter, orderMode, guessMode]);
+  }, [startTimer, elementFilter, orderMode, guessMode, elements]);
 
   const handleSubmit = useCallback(() => {
     if (!current) return;

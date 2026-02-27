@@ -1,13 +1,18 @@
 import { ScrollView, StyleSheet, Text, TouchableOpacity } from "react-native";
 
-import data from "@/data.json";
+import { useElements } from "@/hooks/use-elements";
 import type { ElementFilter } from "@/types/game";
 import { ELEMENT_CATEGORIES } from "@/types/game";
 
-const COUNTS: Record<string, number> = { all: data.elements.length };
-data.elements.forEach(e => {
-  COUNTS[e.category] = (COUNTS[e.category] ?? 0) + 1;
-});
+function countsFrom(elements: any[] | undefined) {
+  const COUNTS: Record<string, number> = {
+    all: elements ? elements.length : 0,
+  };
+  (elements ?? []).forEach(e => {
+    COUNTS[e.category] = (COUNTS[e.category] ?? 0) + 1;
+  });
+  return COUNTS;
+}
 
 const LABELS: Record<string, string> = {
   all: "All",
@@ -31,6 +36,8 @@ export function ElementFilterSelector({
   value: ElementFilter;
   onChange: (filter: ElementFilter) => void;
 }) {
+  const { data: elements, isLoading, isError } = useElements();
+  const COUNTS = countsFrom(elements);
   return (
     <ScrollView
       horizontal

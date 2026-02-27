@@ -22,7 +22,7 @@ import { SettingsButton } from "@/components/settings-button";
 import { ACHIEVEMENTS } from "@/constants/achievements";
 import { reactionColor } from "@/constants/atom-palette";
 import { useAchievements } from "@/context/achievements";
-import data from "@/data.json";
+import { useElements } from "@/hooks/use-elements";
 import { useGame } from "@/hooks/use-game";
 import type { GameResult } from "@/types/achievement";
 import { formatTime } from "@/utils/game";
@@ -35,6 +35,7 @@ export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const game = useGame();
   const achievements = useAchievements();
+  const { data: elements, isLoading, isError, error } = useElements();
 
   // Fire achievement check exactly once each time the game finishes
   const checkedRef = useRef(false);
@@ -61,11 +62,30 @@ export default function HomeScreen() {
     if (game.gameState !== "finished") achievements.clearNewlyUnlocked();
   }, [game.gameState]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  if (isLoading) {
+    return (
+      <View style={[styles.fill, { paddingTop: insets.top }]}>
+        <Text style={styles.idleTitle}>Loading elements…</Text>
+      </View>
+    );
+  }
+
+  if (isError) {
+    return (
+      <View style={[styles.fill, { paddingTop: insets.top }]}>
+        <Text style={styles.idleTitle}>
+          Error loading elements: {String(error)}
+        </Text>
+      </View>
+    );
+  }
+
   if (game.gameState === "idle") {
     const poolCount =
       game.elementFilter === "all"
-        ? data.elements.length
-        : data.elements.filter(e => e.category === game.elementFilter).length;
+        ? (elements ?? []).length
+        : (elements ?? []).filter(e => e.category === game.elementFilter)
+            .length;
 
     return (
       <View style={[styles.fill, { paddingTop: insets.top }]}>
@@ -164,7 +184,7 @@ export default function HomeScreen() {
           <View style={styles.recapList}>
             <Text style={styles.recapHeader}>Reaction times</Text>
             {game.finalReactionTimes.map(rt => {
-              const el = data.elements.find(
+              const el = (elements ?? []).find(
                 e => e.atomicNumber === rt.atomicNumber,
               );
               return (

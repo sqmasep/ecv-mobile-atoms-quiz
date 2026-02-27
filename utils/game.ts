@@ -1,4 +1,3 @@
-import data from "@/data.json";
 import type {
   Element,
   ElementFilter,
@@ -27,14 +26,15 @@ export function getCorrectAnswer(
 }
 
 export function buildPool(
+  elements: Element[],
   filter: ElementFilter,
   orderMode: OrderMode,
   guessMode: GuessMode,
 ): Element[] {
   let pool: Element[] =
     filter === "all"
-      ? [...data.elements]
-      : data.elements.filter(e => e.category === filter);
+      ? [...elements]
+      : elements.filter(e => e.category === filter);
 
   if (orderMode === "atomicNumber") {
     pool = pool.slice().sort((a, b) => a.atomicNumber - b.atomicNumber);
