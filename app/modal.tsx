@@ -1,13 +1,16 @@
 import { useRouter } from "expo-router";
 import { StyleSheet, Switch, Text, TouchableOpacity, View } from "react-native";
+import { Button } from "react-native-paper";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useSettings } from "@/context/settings";
+import { useAuth } from "@/stores/auth";
 
 export default function SettingsModal() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { autoSend, setAutoSend } = useSettings();
+  const { user, signOut } = useAuth();
 
   return (
     <View
@@ -41,6 +44,22 @@ export default function SettingsModal() {
           />
         </View>
       </View>
+
+      {/* User Info */}
+      <View style={styles.userSection}>
+        <Text style={styles.userLabel}>Signed in as</Text>
+        <Text style={styles.userEmail}>{user?.email}</Text>
+      </View>
+
+      {/* Sign Out Button */}
+      <Button
+        mode="outlined"
+        onPress={() => { signOut(); router.replace("/auth/sign-in"); }}
+        textColor="#71717a"
+        style={styles.signOutBtn}
+      >
+        Sign Out
+      </Button>
     </View>
   );
 }
@@ -102,5 +121,23 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#52525b",
     lineHeight: 17,
+  },
+  userSection: {
+    marginTop: 32,
+    gap: 6,
+  },
+  userLabel: {
+    fontSize: 12,
+    color: "#52525b",
+    fontWeight: "500",
+  },
+  userEmail: {
+    fontSize: 14,
+    color: "#e4e4e7",
+    fontWeight: "600",
+  },
+  signOutBtn: {
+    marginTop: 16,
+    borderColor: "#27272a",
   },
 });

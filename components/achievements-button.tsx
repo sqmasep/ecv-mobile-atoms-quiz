@@ -1,5 +1,6 @@
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { StyleSheet, Text, TouchableOpacity } from "react-native";
+import { StyleSheet, TouchableOpacity } from "react-native";
 
 export function AchievementsButton({ top }: { top: number }) {
   const router = useRouter();
@@ -8,7 +9,7 @@ export function AchievementsButton({ top }: { top: number }) {
       style={[styles.btn, { top }]}
       onPress={() => router.push("/achievements")}
     >
-      <Text style={styles.icon}>{"\u{1F3C6}"}</Text>
+      <MaterialCommunityIcons name="trophy" size={18} color="#f4f4f5" />
     </TouchableOpacity>
   );
 }

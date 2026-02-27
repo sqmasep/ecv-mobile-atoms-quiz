@@ -1,5 +1,6 @@
+import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { StyleSheet, Text, TouchableOpacity } from "react-native";
+import { StyleSheet, TouchableOpacity } from "react-native";
 
 export function SettingsButton({ top }: { top: number }) {
   const router = useRouter();
@@ -8,7 +9,7 @@ export function SettingsButton({ top }: { top: number }) {
       style={[styles.btn, { top }]}
       onPress={() => router.push("/modal")}
     >
-      <Text style={styles.icon}>&#9881;</Text>
+      <Ionicons name="settings" size={18} color="#71717a" />
     </TouchableOpacity>
   );
 }

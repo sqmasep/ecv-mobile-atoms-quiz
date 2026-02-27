@@ -10,6 +10,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ACHIEVEMENTS } from "@/constants/achievements";
 import { useAchievements } from "@/context/achievements";
+import { Ionicons } from "@expo/vector-icons";
 
 export default function AchievementsScreen() {
   const insets = useSafeAreaInsets();
@@ -26,7 +27,7 @@ export default function AchievementsScreen() {
         style={[styles.backBtn, { top: insets.top + 10 }]}
         onPress={() => router.back()}
       >
-        <Text style={styles.backIcon}>{"\u2190"}</Text>
+        <Ionicons name="arrow-back" size={18} color="#71717a" />
       </TouchableOpacity>
 
       <ScrollView

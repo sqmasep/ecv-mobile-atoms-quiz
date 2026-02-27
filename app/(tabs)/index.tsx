@@ -1,5 +1,6 @@
 ﻿import { useEffect, useRef } from "react";
 import {
+  Alert,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -26,6 +27,7 @@ import { useElements } from "@/hooks/use-elements";
 import { useGame } from "@/hooks/use-game";
 import type { GameResult } from "@/types/achievement";
 import { formatTime } from "@/utils/game";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 
 // Tailwind zinc: 950=#09090b 900=#18181b 800=#27272a 700=#3f3f46
 //               600=#52525b 500=#71717a 400=#a1a1aa 300=#d4d4d8
@@ -99,9 +101,22 @@ export default function HomeScreen() {
           ]}
           showsVerticalScrollIndicator={false}
         >
-          <Text style={[styles.idleTitle, styles.px]}>
-            {"\u269b"} Atom Quiz
-          </Text>
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "center",
+              marginBottom: 6,
+            }}
+          >
+            <MaterialCommunityIcons
+              name="atom"
+              size={22}
+              color="#f4f4f5"
+              style={{ marginRight: 8 }}
+            />
+            <Text style={[styles.idleTitle, styles.px]}>Atom Quiz</Text>
+          </View>
 
           <Text style={[styles.sectionLabel, styles.px]}>Guess</Text>
           <View style={styles.px}>
@@ -226,13 +241,25 @@ export default function HomeScreen() {
         {/* Stats + Score */}
         <View style={styles.topArea}>
           <View style={styles.statsRow}>
-            <Text style={styles.statItem}>
-              {"\u21b7"} {game.skipCount} skipped
-            </Text>
-            <Text style={styles.statDivider}>{"\u00b7"}</Text>
-            <Text style={styles.statItem}>
-              {"\u2717"} {game.errorCount} errors
-            </Text>
+            <View style={styles.statItemContainer}>
+              <MaterialCommunityIcons
+                name="reply"
+                size={14}
+                color="#3f3f46"
+                style={{ marginRight: 4 }}
+              />
+              <Text style={styles.statItem}>{game.skipCount} skipped</Text>
+            </View>
+            <Text style={styles.statDivider}>·</Text>
+            <View style={styles.statItemContainer}>
+              <MaterialCommunityIcons
+                name="close-circle"
+                size={14}
+                color="#3f3f46"
+                style={{ marginRight: 4 }}
+              />
+              <Text style={styles.statItem}>{game.errorCount} errors</Text>
+            </View>
           </View>
           <View style={styles.scoreRow}>
             <Text style={styles.timerText}>{formatTime(game.elapsed)}</Text>
@@ -290,8 +317,26 @@ export default function HomeScreen() {
               <Text style={styles.btnText}>Submit</Text>
             </TouchableOpacity>
           </View>
-          <TouchableOpacity onPress={game.startGame}>
-            <Text style={styles.resetText}>Reset</Text>
+          <TouchableOpacity
+            style={styles.resetBtn}
+            onPress={() =>
+              Alert.alert(
+                "Reset game",
+                "Are you sure you want to restart from the beginning? Your current progress will be lost.",
+                [
+                  { text: "Cancel", style: "cancel" },
+                  {
+                    text: "Reset",
+                    style: "destructive",
+                    onPress: game.startGame,
+                  },
+                ],
+              )
+            }
+            activeOpacity={0.6}
+          >
+            <MaterialCommunityIcons name="refresh" size={14} color="#52525b" />
+            <Text style={styles.resetBtnText}>Reset</Text>
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
@@ -449,11 +494,25 @@ const styles = StyleSheet.create({
     color: "#e4e4e7", // zinc-200
     backgroundColor: "#18181b", // zinc-900
   },
-  resetText: {
+  statItemContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  resetBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 20,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#27272a", // zinc-800
+  },
+  resetBtnText: {
     fontSize: 13,
-    color: "#3f3f46", // zinc-700
     fontWeight: "500",
-    paddingVertical: 4,
+    color: "#52525b", // zinc-600
   },
 
   // ── Finished / recap ──────────────────────────────────────────────────────

@@ -1,4 +1,5 @@
-import { StyleSheet, Text, TouchableOpacity } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { StyleSheet, TouchableOpacity } from "react-native";
 
 export function HomeButton({
   top,
@@ -9,7 +10,7 @@ export function HomeButton({
 }) {
   return (
     <TouchableOpacity style={[styles.btn, { top }]} onPress={onPress}>
-      <Text style={styles.icon}>{"\u2190"}</Text>
+      <Ionicons name="arrow-back" size={18} color="#71717a" />
     </TouchableOpacity>
   );
 }
