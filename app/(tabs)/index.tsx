@@ -1,5 +1,6 @@
 ﻿import { useEffect, useRef } from "react";
 import {
+  ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
   Platform,
@@ -66,18 +67,30 @@ export default function HomeScreen() {
 
   if (isLoading) {
     return (
-      <View style={[styles.fill, { paddingTop: insets.top }]}>
-        <Text style={styles.idleTitle}>Loading elements…</Text>
+      <View style={styles.centeredFill}>
+        <MaterialCommunityIcons
+          name="atom"
+          size={48}
+          color="#27272a"
+          style={{ marginBottom: 20 }}
+        />
+        <ActivityIndicator size="small" color="#52525b" />
+        <Text style={styles.loadingText}>Loading elements…</Text>
       </View>
     );
   }
 
   if (isError) {
     return (
-      <View style={[styles.fill, { paddingTop: insets.top }]}>
-        <Text style={styles.idleTitle}>
-          Error loading elements: {String(error)}
-        </Text>
+      <View style={styles.centeredFill}>
+        <MaterialCommunityIcons
+          name="alert-circle-outline"
+          size={40}
+          color="#3f3f46"
+          style={{ marginBottom: 16 }}
+        />
+        <Text style={styles.errorTitle}>Failed to load</Text>
+        <Text style={styles.errorDetail}>{String(error)}</Text>
       </View>
     );
   }
@@ -348,6 +361,32 @@ const styles = StyleSheet.create({
   fill: {
     flex: 1,
     backgroundColor: "#09090b", // zinc-950
+  },
+  centeredFill: {
+    flex: 1,
+    backgroundColor: "#09090b", // zinc-950
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 12,
+    paddingHorizontal: 32,
+  },
+  loadingText: {
+    fontSize: 14,
+    color: "#3f3f46", // zinc-700
+    marginTop: 4,
+    letterSpacing: 0.3,
+  },
+  errorTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#71717a", // zinc-500
+    letterSpacing: 0.2,
+  },
+  errorDetail: {
+    fontSize: 13,
+    color: "#3f3f46", // zinc-700
+    textAlign: "center",
+    lineHeight: 20,
   },
   /** Horizontal padding shared by padded idle-screen rows */
   px: {
